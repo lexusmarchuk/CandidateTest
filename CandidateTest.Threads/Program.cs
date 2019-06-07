@@ -18,7 +18,7 @@ namespace CandidateTest.Threads
             aTimer.Interval = 100;
             aTimer.Enabled = true;
 
-            timeToBeCompleted = DateTime.Now.AddMinutes(1);
+            timeToBeCompleted = DateTime.Now.AddMinutes(5);
             Console.WriteLine("Should be automatically stopped at " + timeToBeCompleted.ToShortTimeString());
             Process currentProcess = Process.GetCurrentProcess();
 
@@ -27,7 +27,7 @@ namespace CandidateTest.Threads
 
             for (int i = 1; i <= 200; i++)
             {
-                WorkerProcess p = new WorkerProcess("P#" + i.ToString(), 200 + i * 2, cts);
+                WorkerProcess p = new WorkerProcess("P#" + i.ToString(), 200 + (200 / i * 2), cts);
                 p.Start();
             }
 
