@@ -1,6 +1,6 @@
 Here is a Console Application, which is, you will be suprized, doing some job. 
 And the problem is that the application, probably, consumes a lot of RAM and CPU time.
-From time to time it takes **40-90% CPU**, **210-230 threads**, **RAM** constntly grouth to **40MB+**.
+From time to time it takes **40-90% CPU**, **210-230 threads**, **RAM** constantly grouth up to **40MB+**.
 
 What it does:
 * writes logs to \Output\data.txt file (time, ID of process, etc.);
