@@ -22,9 +22,9 @@ namespace CandidateTest.Threads
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly UTF8Encoding _encoding = new UTF8Encoding(true);
 
-        private readonly List<KeyValuePair<string, string>> _data = new List<KeyValuePair<string, string>>();
+        private readonly ConcurrentDictionary<string, int> _statisticData = new ConcurrentDictionary<string, int>();
 
-        private FileStream _dataStream;
+        private TextWriter _dataStream;
         private DateTime _lastStatisticSaved = DateTime.MinValue;
 
         public DataLogger() {
@@ -84,13 +84,17 @@ namespace CandidateTest.Threads
                     continue;
                 }
 
-                _data.Add(item);
                 _dataFileQueue.Enqueue(item.Value);
+
+                var count = _statisticData.GetOrAdd(item.Key, (_) => 0);
+                count++;
+                _statisticData[item.Key] = count;
             }
         }
 
         private void DataProcess(CancellationToken cancellationToken)
         {
+            var writeCount = 0;
             while (!cancellationToken.IsCancellationRequested)
             {
                 if (!_dataFileQueue.TryDequeue(out var content))
@@ -101,13 +105,24 @@ namespace CandidateTest.Threads
 
                 if (_dataStream == null)
                 {
-                    SafeExecute.Sync(() => _dataStream = new FileStream(DataFilePath, FileMode.Append));
+                    SafeExecute.Sync(() => _dataStream = new StreamWriter(DataFilePath, true, Encoding.UTF8, 65536));
+                }
+
+                writeCount++;
+                if (writeCount > 1000)
+                {
+                    writeCount = 0;
+                    SafeExecute.Sync(() => _dataStream.Flush());
+                    SafeExecute.Sync(() => _dataStream.Close());
+                    _dataStream = null;
+                    GC.Collect();
+
+                    SafeExecute.Sync(() => _dataStream = new StreamWriter(DataFilePath, true, Encoding.UTF8, 65536));
                 }
 
                 try
                 {
-                    var bytes = _encoding.GetBytes(content);
-                    _dataStream.Write(bytes, 0, bytes.Length);
+                    _dataStream.Write(content);
                 }
                 catch (Exception ex)
                 {
@@ -115,7 +130,7 @@ namespace CandidateTest.Threads
 
                     SafeExecute.Sync(() => _dataStream.Close());
 
-                    SafeExecute.Sync(() => _dataStream = new FileStream(DataFilePath, FileMode.Append));
+                    SafeExecute.Sync(() => _dataStream = new StreamWriter(DataFilePath, true, Encoding.UTF8, 65536));
                 }
             }
         }
@@ -138,18 +153,18 @@ namespace CandidateTest.Threads
         private void SaveStatistics()
         {
             SafeExecute.Sync(() => {
-                using (var fs = File.Open(StatisticFilePath, FileMode.Open))
+                var stat = _statisticData.OrderBy(x => x.Key);
+                var statistics = String.Format("{0,10} | {1,10}", "Process", "Count") + Environment.NewLine;
+                statistics += new String('-', 24) + Environment.NewLine;
+                foreach (var process in stat)
                 {
-                    var stat = _data.GroupBy(x => x.Key).OrderBy(x => x.Key);
-                    var statistics = String.Format("{0,10} | {1,10}", "Process", "Count") + Environment.NewLine;
-                    statistics += new String('-', 24) + Environment.NewLine;
-                    foreach (var process in stat)
-                    {
-                        statistics += String.Format("{0,10} | {1,10}", process.Key, process.Count()) + Environment.NewLine;
-                    }
+                    statistics += String.Format("{0,10} | {1,10}", process.Key, process.Value) + Environment.NewLine;
+                }
 
-                    var toSave = new UTF8Encoding(true).GetBytes(statistics);
-                    fs.Write(toSave, 0, toSave.Length);
+                using (var statisticStream = new StreamWriter(StatisticFilePath, true, Encoding.UTF8, 65536))
+                {
+                    statisticStream.Write(statistics);
+                    statisticStream.Flush();
                 }
             });
         }
