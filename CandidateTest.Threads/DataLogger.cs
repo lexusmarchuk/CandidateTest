@@ -17,6 +17,7 @@ namespace CandidateTest.Threads
         private static readonly TimeSpan StatisticDelay = TimeSpan.FromMilliseconds(500);
 
         private readonly ConcurrentQueue<KeyValuePair<string, string>> _queue = new ConcurrentQueue<KeyValuePair<string, string>>();
+        private readonly ConcurrentQueue<string> _dataFileQueue = new ConcurrentQueue<string>();
         
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly UTF8Encoding _encoding = new UTF8Encoding(true);
@@ -29,8 +30,21 @@ namespace CandidateTest.Threads
         public DataLogger() {
 
             _cancellationTokenSource = new CancellationTokenSource();
+
             Task.Factory.StartNew(
                 () => ProcessMessages(_cancellationTokenSource.Token),
+                _cancellationTokenSource.Token,
+                TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
+
+            Task.Factory.StartNew(
+                () => DataProcess(_cancellationTokenSource.Token),
+                _cancellationTokenSource.Token,
+                TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
+
+            Task.Factory.StartNew(
+                () => StatisticProcess(_cancellationTokenSource.Token),
                 _cancellationTokenSource.Token,
                 TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning,
                 TaskScheduler.Default);
@@ -64,13 +78,52 @@ namespace CandidateTest.Threads
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (_queue.TryDequeue(out var item))
+                if (!_queue.TryDequeue(out var item))
                 {
-                    _data.Add(item);
-                    AppendData(item.Value);
+                    Thread.Sleep(DelayMilliseconds);
                     continue;
                 }
 
+                _data.Add(item);
+                _dataFileQueue.Enqueue(item.Value);
+            }
+        }
+
+        private void DataProcess(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                if (!_dataFileQueue.TryDequeue(out var content))
+                {
+                    Thread.Sleep(DelayMilliseconds);
+                    continue;
+                }
+
+                if (_dataStream == null)
+                {
+                    SafeExecute.Sync(() => _dataStream = new FileStream(DataFilePath, FileMode.Append));
+                }
+
+                try
+                {
+                    var bytes = _encoding.GetBytes(content);
+                    _dataStream.Write(bytes, 0, bytes.Length);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+
+                    SafeExecute.Sync(() => _dataStream.Close());
+
+                    SafeExecute.Sync(() => _dataStream = new FileStream(DataFilePath, FileMode.Append));
+                }
+            }
+        }
+
+        private void StatisticProcess(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
                 var now = DateTime.Now;
                 if (now - _lastStatisticSaved > StatisticDelay)
                 {
@@ -79,28 +132,6 @@ namespace CandidateTest.Threads
                 }
 
                 Thread.Sleep(DelayMilliseconds);
-            }
-        }
-
-        private void AppendData(string content)
-        {
-            if (_dataStream == null)
-            {
-                SafeExecute.Sync(() => _dataStream = new FileStream(DataFilePath, FileMode.Append));
-            }
-
-            try
-            {
-                var bytes = _encoding.GetBytes(content);
-                _dataStream.Write(bytes, 0, bytes.Length);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-
-                SafeExecute.Sync(() => _dataStream.Close());
-
-                SafeExecute.Sync(() => _dataStream = new FileStream(DataFilePath, FileMode.Append));
             }
         }
 
