@@ -1,6 +1,12 @@
 ﻿using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Timers;
 
 namespace CandidateTest.Threads
@@ -11,8 +17,8 @@ namespace CandidateTest.Threads
         static DateTime timeToBeCompleted;
         static bool completedByTime;
         static System.Timers.Timer aTimer;
-        static FileLogger dataLogger = new FileLogger("..\\..\\Output\\data.txt");
-        static FileLogger statisticLogger = new FileLogger("..\\..\\Output\\Statistics.txt", System.IO.FileMode.Open);
+        static DataLogger dataLogger = new DataLogger();
+
         static void Main(string[] args)
         {
             AppDomain.CurrentDomain.ProcessExit += new EventHandler(CurrentDomain_ProcessExit);
@@ -28,11 +34,12 @@ namespace CandidateTest.Threads
             Console.WriteLine("Press ESCAPE to stop the process.");
             Console.WriteLine(string.Format("RAM used: {0} MB", currentProcess.WorkingSet64 / 1024 / 1024));
 
-            
-
             for (int i = 1; i <= 200; i++)
             {
-                WorkerProcess p = new WorkerProcess("P#" + i.ToString(), 200 + (200 / i * 2), cts.Token, dataLogger, statisticLogger);
+                WorkerProcess p = new WorkerProcess(
+                    "P#" + i.ToString(), 200 + (200 / i * 2), 
+                    cts.Token, 
+                    dataLogger);
                 p.Start();
             }
 
@@ -45,7 +52,6 @@ namespace CandidateTest.Threads
                 cts.Cancel();
 
                 dataLogger.Dispose();
-                statisticLogger.Dispose();
             }
             Console.WriteLine("Press ANY KEY");
             Console.ReadKey();
@@ -54,7 +60,6 @@ namespace CandidateTest.Threads
         private static void CurrentDomain_ProcessExit(object sender, EventArgs e)
         {
             dataLogger.Dispose();
-            statisticLogger.Dispose();
         }
 
         private static void OnTimedEvent(object source, ElapsedEventArgs e)
@@ -69,7 +74,6 @@ namespace CandidateTest.Threads
             completedByTime = true;
 
             dataLogger.Dispose();
-            statisticLogger.Dispose();
         }
     }
 }

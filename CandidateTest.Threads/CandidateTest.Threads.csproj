@@ -44,9 +44,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="FileLogger.cs" />
+    <Compile Include="DataLogger.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SafeExecute.cs" />
     <Compile Include="WorkerProcess.cs" />
   </ItemGroup>
   <ItemGroup>
