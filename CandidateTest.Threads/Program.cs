@@ -34,14 +34,25 @@ namespace CandidateTest.Threads
             Console.WriteLine("Press ESCAPE to stop the process.");
             Console.WriteLine(string.Format("RAM used: {0} MB", currentProcess.WorkingSet64 / 1024 / 1024));
 
-            for (int i = 1; i <= 200; i++)
-            {
+            Parallel.For(1, 200, new ParallelOptions {
+                MaxDegreeOfParallelism = 100,
+                CancellationToken = cts.Token
+            }, i => {
                 WorkerProcess p = new WorkerProcess(
-                    "P#" + i.ToString(), 200 + (200 / i * 2), 
-                    cts.Token, 
+                    "P#" + i.ToString(), 200 + (200 / i * 2),
+                    cts.Token,
                     dataLogger);
                 p.Start();
-            }
+            });
+
+            //for (int i = 1; i <= 200; i++)
+            //{
+            //    WorkerProcess p = new WorkerProcess(
+            //        "P#" + i.ToString(), 200 + (200 / i * 2), 
+            //        cts.Token, 
+            //        dataLogger);
+            //    p.Start();
+            //}
 
             while (Console.ReadKey(true).Key == ConsoleKey.Escape && !completedByTime)
             {

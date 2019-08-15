@@ -34,28 +34,23 @@ namespace CandidateTest.Threads
 
             OnRetry += Retry;
 
-            var mainThread = new Thread(() =>
+            while (!_cancellationToken.IsCancellationRequested)
             {
-                while (!_cancellationToken.IsCancellationRequested)
+                _cnt++;
+
+                try
                 {
-                    _cnt++;
-                    
-                    try
-                    {
-                        var message = DateTime.UtcNow.ToString() + " \t TimeOut : " + TimeOut.ToString() + " \t\t " + ProcessName + "(" + _cnt + ")" + Environment.NewLine;
+                    var message = DateTime.UtcNow.ToString() + " \t TimeOut : " + TimeOut.ToString() + " \t\t " + ProcessName + "(" + _cnt + ")" + Environment.NewLine;
 
-                        _dataLogger.Write(ProcessName, message);
-                    }
-                    catch (Exception ex)
-                    {
-                        OnRetry(ex.Message);
-                    }
-
-                    Thread.Sleep(TimeOut);
+                    _dataLogger.Write(ProcessName, message);
                 }
-            });
+                catch (Exception ex)
+                {
+                    OnRetry(ex.Message);
+                }
 
-            mainThread.Start();
+                Thread.Sleep(TimeOut);
+            }
         }
 
         private void Retry(string message)
