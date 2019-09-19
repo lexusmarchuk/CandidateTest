@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Threading;
 
@@ -11,9 +10,9 @@ namespace CandidateTest.Threads
     {
         private static ReaderWriterLockSlim _readWriteLock = new ReaderWriterLockSlim();
         private static ReaderWriterLockSlim _statisticWriteLock = new ReaderWriterLockSlim();
-        private bool isCompleted;
+        private bool _isCompleted;
         private int _cnt = 0;
-        private static string _statistics;
+        //private static string _statistics;
         private CancellationTokenSource _cts;
         //private delegate void RetryHandler(string message);
         //private event RetryHandler OnRetry;
@@ -47,24 +46,24 @@ namespace CandidateTest.Threads
             ProcessName = string.IsNullOrWhiteSpace(processName) ? "Noname Process" : processName;
             TimeOut = timeOut > 0 ? timeOut : 500;
             _cts = cts;
-            _statistics = string.Empty;
+            //_statistics = string.Empty;
             _cnt = 0;
         }
         
         public void Start()
         {
-            // We should use Thread pool instead of creating a lot of threads
+            // We should use Thread pool instead of creating a lot of threads here
             //var mainThread = new Thread(() =>
             ThreadPool.QueueUserWorkItem((object o) =>
             {
-                // This should be put of out the loop
+                // This should be put out of the loop
                 _cts.Token.Register(() =>
                 {
-                    isCompleted = true;
+                    _isCompleted = true;
                 });
 
                 var encoding = new UTF8Encoding(true);
-                while (!isCompleted)
+                while (!_isCompleted)
                 {
                     _cnt++;
                     //_cts.Token.Register(() =>
@@ -74,8 +73,8 @@ namespace CandidateTest.Threads
                     try
                     {
                         // These operations should not be locked
-                        //string description = $"{DateTime.UtcNow}\t TimeOut : {TimeOut} \t\t {ProcessName}({_cnt}){Environment.NewLine}";
-                        //byte[] passedData = encoding.GetBytes(description); // passedData should be a local variable not a field of the class
+                        string description = $"{DateTime.UtcNow}\t TimeOut : {TimeOut} \t\t {ProcessName}({_cnt}){Environment.NewLine}";
+                        byte[] passedData = encoding.GetBytes(description); // passedData should be a local variable not a field of the class
 
                         _readWriteLock.EnterWriteLock();
                         //var fs = File.Open("..\\..\\Output\\data.txt", FileMode.Append);
@@ -85,8 +84,6 @@ namespace CandidateTest.Threads
                         //fs.Write(bytes, 0, bytes.Length);
                         using (var fs = File.Open("..\\..\\Output\\data.txt", FileMode.Append))
                         {
-                            string description = $"{DateTime.UtcNow}\t TimeOut : {TimeOut} \t\t {ProcessName}({_cnt}){Environment.NewLine}";
-                            byte[] passedData = new UTF8Encoding(true).GetBytes(description); // passedData should be a local variable not a field of the class
                             fs.Write(passedData, 0, passedData.Length);
                         }
 
@@ -103,7 +100,9 @@ namespace CandidateTest.Threads
                     {
                         _readWriteLock.ExitWriteLock();
                     }
+
                     Thread.Sleep(TimeOut);
+
                     // Don't need a new thread to save statistics, just use the current one
                     //var statisticsThread = new Thread(() =>
                     //{
@@ -127,7 +126,8 @@ namespace CandidateTest.Threads
             statistics["Error"] = numberOfErrors + 1;
         }
 
-        public static void SaveStatistics()
+        //public static void SaveStatistics()
+        private static void SaveStatistics()
         {
             //try
             //{
@@ -149,6 +149,7 @@ namespace CandidateTest.Threads
             //}
 
             // Build statistic content to output
+            // We should use StringBuilder since there are many string concatnations
             StringBuilder statisticBuilder = new StringBuilder();
             statisticBuilder.AppendFormat("{0,10} | {1,10}", "Process", "Count").AppendLine().AppendLine(new string('-', 24));
             try
@@ -165,12 +166,13 @@ namespace CandidateTest.Threads
             }
 
             // Write the content to statistic file
+            // We have to lock before writing to the file
+            var toSave = new UTF8Encoding(true).GetBytes(statisticBuilder.ToString());
             try
             {
                 _statisticWriteLock.EnterWriteLock();
-                using (var fs = File.Open("..\\..\\Output\\Statistics.txt", FileMode.Open))
+                using (var fs = File.Open("..\\..\\Output\\Statistics.txt", FileMode.OpenOrCreate))
                 {
-                    var toSave = new UTF8Encoding(true).GetBytes(statisticBuilder.ToString()); //Can we put this out
                     fs.Write(toSave, 0, toSave.Length);
                 }
             }
