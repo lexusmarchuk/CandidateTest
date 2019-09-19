@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Timers;
 
 namespace CandidateTest.Threads
 {
     class Program
     {
+        const int numberOfProcesses = 2000;
         static CancellationTokenSource cts = new CancellationTokenSource();
         static DateTime timeToBeCompleted;
         static bool completedByTime;
@@ -25,11 +27,31 @@ namespace CandidateTest.Threads
             Console.WriteLine("Press ESCAPE to stop the process.");
             Console.WriteLine(string.Format("RAM used: {0} MB", currentProcess.WorkingSet64 / 1024 / 1024));
 
-            for (int i = 1; i <= 200; i++)
-            {
-                WorkerProcess p = new WorkerProcess("P#" + i.ToString(), 200 + (200 / i * 2), cts);
-                p.Start();
-            }
+            //for (int i = 1; i <= 200; i++)
+            //{
+            //    WorkerProcess p = new WorkerProcess("P#" + i.ToString(), 200 + (200 / i * 2), cts);
+            //    p.Start();
+            //}
+            Task.Run(() =>
+                {
+                    try
+                    {
+                        Parallel.For(1, numberOfProcesses + 1, new ParallelOptions()
+                        {
+                            MaxDegreeOfParallelism = 16,
+                            CancellationToken = cts.Token
+                        }, i =>
+                        {
+                            WorkerProcess p = new WorkerProcess("P#" + i.ToString(), numberOfProcesses + (numberOfProcesses / i * 2), cts);
+                            p.Start();
+                        });
+                    }
+                    catch (OperationCanceledException)
+                    {
+                    }
+                }
+           );
+
 
             while (Console.ReadKey(true).Key == ConsoleKey.Escape && !completedByTime)
             {

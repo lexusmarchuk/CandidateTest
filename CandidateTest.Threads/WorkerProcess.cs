@@ -10,7 +10,7 @@ namespace CandidateTest.Threads
     {
         private static ReaderWriterLockSlim _readWriteLock = new ReaderWriterLockSlim();
         private static ReaderWriterLockSlim _statisticWriteLock = new ReaderWriterLockSlim();
-        private bool _isCompleted;
+        //private bool _isCompleted;
         private int _cnt = 0;
         //private static string _statistics;
         private CancellationTokenSource _cts;
@@ -52,67 +52,66 @@ namespace CandidateTest.Threads
         
         public void Start()
         {
-            //ThreadPool.QueueUserWorkItem((object o) =>
-            var mainThread = new Thread(() =>
-            {
+            //var mainThread = new Thread(() =>
+            //{
                 // This should be put out of the loop
-                _cts.Token.Register(() =>
+                //_cts.Token.Register(() =>
+                //{
+                //    _isCompleted = true;
+                //});
+
+            var encoding = new UTF8Encoding(true);
+            while (!_cts.Token.IsCancellationRequested) // Using IsCancellationRequested is shorter way
+            {
+                _cnt++;
+                //_cts.Token.Register(() =>
+                //{
+                //    isCompleted = true;
+                //});
+                try
                 {
-                    _isCompleted = true;
-                });
+                    // These operations should not be locked
+                    string description = $"{DateTime.UtcNow}\t TimeOut : {TimeOut} \t\t {ProcessName}({_cnt}){Environment.NewLine}";
+                    byte[] passedData = encoding.GetBytes(description); // passedData should be a local variable not a field of the class
 
-                var encoding = new UTF8Encoding(true);
-                while (!_isCompleted)
-                {
-                    _cnt++;
-                    //_cts.Token.Register(() =>
-                    //{
-                    //    isCompleted = true;
-                    //});
-                    try
+                    _readWriteLock.EnterWriteLock();
+                    //var fs = File.Open("..\\..\\Output\\data.txt", FileMode.Append);
+                    //Data.Add(new KeyValuePair<string, string>(ProcessName, DateTime.UtcNow.ToString() + " \t TimeOut : " + TimeOut.ToString() + " \t\t " + ProcessName + "(" + _cnt + ")" + Environment.NewLine));
+                    //_passedData = new UTF8Encoding(true).GetBytes(Data.LastOrDefault(x => x.Key == ProcessName).Value);
+                    //byte[] bytes = _passedData;
+                    //fs.Write(bytes, 0, bytes.Length);
+                    using (var fs = File.Open("..\\..\\Output\\data.txt", FileMode.Append))
                     {
-                        // These operations should not be locked
-                        string description = $"{DateTime.UtcNow}\t TimeOut : {TimeOut} \t\t {ProcessName}({_cnt}){Environment.NewLine}";
-                        byte[] passedData = encoding.GetBytes(description); // passedData should be a local variable not a field of the class
-
-                        _readWriteLock.EnterWriteLock();
-                        //var fs = File.Open("..\\..\\Output\\data.txt", FileMode.Append);
-                        //Data.Add(new KeyValuePair<string, string>(ProcessName, DateTime.UtcNow.ToString() + " \t TimeOut : " + TimeOut.ToString() + " \t\t " + ProcessName + "(" + _cnt + ")" + Environment.NewLine));
-                        //_passedData = new UTF8Encoding(true).GetBytes(Data.LastOrDefault(x => x.Key == ProcessName).Value);
-                        //byte[] bytes = _passedData;
-                        //fs.Write(bytes, 0, bytes.Length);
-                        using (var fs = File.Open("..\\..\\Output\\data.txt", FileMode.Append))
-                        {
-                            fs.Write(passedData, 0, passedData.Length);
-                        }
-
-                        statistics[ProcessName] = _cnt;
-                    }
-                    catch (Exception ex)
-                    {
-                        // We don't need a delegate here, just call private method Retry
-                        //OnRetry += Retry;
-                        //OnRetry(ex.Message);
-                        Retry(ex.Message);
-                    }
-                    finally
-                    {
-                        _readWriteLock.ExitWriteLock();
+                        fs.Write(passedData, 0, passedData.Length);
                     }
 
-                    Thread.Sleep(TimeOut);
-
-                    // Don't need a new thread to save statistics, just use the current one
-                    //var statisticsThread = new Thread(() =>
-                    //{
-                    //    SaveStatistics();
-                    //});
-                    //statisticsThread.Start();
-                    SaveStatistics();
+                    statistics[ProcessName] = _cnt;
                 }
-            });
+                catch (Exception ex)
+                {
+                    // We don't need a delegate here, just call private method Retry
+                    //OnRetry += Retry;
+                    //OnRetry(ex.Message);
+                    Retry(ex.Message);
+                }
+                finally
+                {
+                    _readWriteLock.ExitWriteLock();
+                }
 
-            mainThread.Start();
+                Thread.Sleep(TimeOut);
+
+                // Don't need a new thread to save statistics, just use the current one
+                //var statisticsThread = new Thread(() =>
+                //{
+                //    SaveStatistics();
+                //});
+                //statisticsThread.Start();
+                SaveStatistics();
+            }
+            //});
+
+            //mainThread.Start();
         }
 
         private static void Retry(string message)
