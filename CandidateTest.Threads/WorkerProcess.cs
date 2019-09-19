@@ -52,9 +52,8 @@ namespace CandidateTest.Threads
         
         public void Start()
         {
-            // We should use Thread pool instead of creating a lot of threads here
-            //var mainThread = new Thread(() =>
-            ThreadPool.QueueUserWorkItem((object o) =>
+            //ThreadPool.QueueUserWorkItem((object o) =>
+            var mainThread = new Thread(() =>
             {
                 // This should be put out of the loop
                 _cts.Token.Register(() =>
@@ -113,7 +112,7 @@ namespace CandidateTest.Threads
                 }
             });
 
-            //mainThread.Start();
+            mainThread.Start();
         }
 
         private static void Retry(string message)
