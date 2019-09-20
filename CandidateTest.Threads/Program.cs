@@ -8,7 +8,7 @@ namespace CandidateTest.Threads
 {
     class Program
     {
-        const int numberOfProcesses = 2000;
+        const int numberOfProcesses = 200;
         static CancellationTokenSource cts = new CancellationTokenSource();
         static DateTime timeToBeCompleted;
         static bool completedByTime;
@@ -32,13 +32,15 @@ namespace CandidateTest.Threads
             //    WorkerProcess p = new WorkerProcess("P#" + i.ToString(), 200 + (200 / i * 2), cts);
             //    p.Start();
             //}
+
+            // Run the parallel in a different thread so that the main thread is free to serve user interaction (press ESC key)
             Task.Run(() =>
                 {
                     try
                     {
                         Parallel.For(1, numberOfProcesses + 1, new ParallelOptions()
                         {
-                            MaxDegreeOfParallelism = 16,
+                            MaxDegreeOfParallelism = 50, // We can control over maximum number of concurrent tasks
                             CancellationToken = cts.Token
                         }, i =>
                         {
@@ -51,7 +53,6 @@ namespace CandidateTest.Threads
                     }
                 }
            );
-
 
             while (Console.ReadKey(true).Key == ConsoleKey.Escape && !completedByTime)
             {
