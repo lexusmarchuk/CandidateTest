@@ -18,13 +18,20 @@ namespace CandidateTest.Threads
             aTimer.Interval = 100;
             aTimer.Enabled = true;
 
-            timeToBeCompleted = DateTime.Now.AddMinutes(5);
+            timeToBeCompleted = DateTime.Now.AddMinutes(1);
             Console.WriteLine("Should be automatically stopped at " + timeToBeCompleted.ToShortTimeString());
             Process currentProcess = Process.GetCurrentProcess();
 
             Console.WriteLine("Press ESCAPE to stop the process.");
             Console.WriteLine(string.Format("RAM used: {0} MB", currentProcess.WorkingSet64 / 1024 / 1024));
 
+            // if that cycle present some parallel initializer of threads
+            // and we cant adjust number of parallel cals started so 
+            // we can set max number of threads in that process through ThreadPool.SetMaxThreads(int, int);
+            // then run WorkrProcess start method as ThreadPool.QueueUserWorkItem(p.Start) 
+            // but inside start method we must refuse to start a new thread 
+
+            ThreadPool.SetMaxThreads(5, 5);
             for (int i = 1; i <= 200; i++)
             {
                 WorkerProcess p = new WorkerProcess("P#" + i.ToString(), 200 + (200 / i * 2), cts);

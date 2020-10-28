@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -9,34 +10,22 @@ namespace CandidateTest.Threads
 {
     public class WorkerProcess
     {
-        // private static ReaderWriterLockSlim _readWriteLock = new ReaderWriterLockSlim();
+        private static ReaderWriterLockSlim _readWriteLock = new ReaderWriterLockSlim();
         private bool isCompleted;
         private int _cnt = 0;
-        private string _statistics;
+        private static string _statistics;
         private CancellationTokenSource _cts;
         private delegate void RetryHandler(string message);
         private event RetryHandler OnRetry;
         private byte[] _passedData;
-        private List<KeyValuePair<string, string>> _data { get; set; }
+        //private static KeyValuePair<string, string> _data { get; set; }
 
-        private static object _Lock = new object();
         private string separator = Path.DirectorySeparatorChar.ToString();
-        public List<KeyValuePair<string, string>> Data
-        {
-            get
-            {
-                if (_data == null)
-                {
-                    _data = new List<KeyValuePair<string, string>>();
-                }
-                return _data;
-            }
-            set
-            {
-                _data = value;
-            }
-        }
+        private static object _lock1 = new object();
+        private static object _lock2 = new object();
 
+        public ConcurrentDictionary<string, string> ConcurentData { get; set; } = new ConcurrentDictionary<string, string>();
+        
         public string ProcessName { get; }
         public int TimeOut { get; }
 
@@ -60,59 +49,63 @@ namespace CandidateTest.Threads
                     {
                         isCompleted = true;
                     });
-                    lock (_Lock)
+                    lock (_lock1)
                     {
                         try
                         {
-                            using (var fs = File.Open($"..{separator}..{separator}Output{separator}data.txt", FileMode.Append))
+                            using (var fs = File.Open($"..{separator}..{separator}Output{separator}data.txt",
+                                FileMode.Append))
                             {
-                                Data.Add(new KeyValuePair<string, string>(ProcessName, DateTime.UtcNow.ToString() + " \t TimeOut : " + TimeOut.ToString() + " \t\t " + ProcessName + "(" + _cnt + ")" + Environment.NewLine));
-                                _passedData = new UTF8Encoding(true).GetBytes(Data.LastOrDefault(x => x.Key == ProcessName).Value);
+
+                                while (ConcurentData.TryAdd(ProcessName,
+                                    DateTime.UtcNow.ToString() + " \t TimeOut : " + TimeOut.ToString() + " \t\t " +
+                                    ProcessName + "(" + _cnt + ")" + Environment.NewLine)) { }
+                                _passedData =
+                                    new UTF8Encoding(true).GetBytes(ConcurentData.LastOrDefault(x => x.Key == ProcessName).Value);
                                 byte[] bytes = _passedData;
                                 fs.Write(bytes, 0, bytes.Length);
                             }
+
                         }
                         catch (Exception ex)
                         {
                             OnRetry += Retry;
                             OnRetry(ex.Message);
                         }
+
                         Thread.Sleep(TimeOut);
-
                     }
-                    SaveStatistics();
-
                 }
-
             });
 
-            //var statisticsThread = new Thread(() =>
-            //{
-            //    SaveStatistics();
-            //});
-
-
-            //statisticsThread.Start();
-
             mainThread.Start();
+
+            var statisticsThread = new Thread(() =>
+            {
+                SaveStatistics();
+            });
+
+            statisticsThread.Start();
         }
 
         private void Retry(string message)
         {
             Console.WriteLine(message);
             string error = message.Trim();
-            Data.Add(new KeyValuePair<string, string>("Error", error));
+            while (ConcurentData.TryAdd("Error", error))
+            { }
         }
 
         public void SaveStatistics()
         {
-            lock (_Lock)
+            lock (_lock2)
             {
                 try
                 {
-                    using (var fs = File.Open($"..{separator}..{separator}Output{separator}Statistics.txt", FileMode.Open))
+                    using (var fs = File.Open($"..{separator}..{separator}Output{separator}Statistics.txt",
+                        FileMode.Open))
                     {
-                        var stat = Data.GroupBy(x => x.Key).OrderBy(x => x.Key);
+                        var stat = ConcurentData.GroupBy(x => x.Key).OrderBy(x => x.Key);
                         _statistics = String.Format("{0,10} | {1,10}", "Process", "Count") + Environment.NewLine;
                         _statistics += new String('-', 24) + Environment.NewLine;
                         foreach (var process in stat)
@@ -123,6 +116,7 @@ namespace CandidateTest.Threads
                         var toSave = new UTF8Encoding(true).GetBytes(_statistics);
                         fs.Write(toSave, 0, toSave.Length);
                     }
+
                 }
                 catch (Exception ex)
                 {
